@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iroquois County Weather Command</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; }
+        header { background: #b71c1c; padding: 25px; text-align: center; border-bottom: 5px solid #7f0000; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        
+        .container { display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .dashboard { display: grid; grid-template-columns: 1fr 350px; gap: 20px; width: 95%; max-width: 1300px; }
+        
+        #map { height: 500px; border-radius: 15px; border: 2px solid #333; }
+        
+        .info-panel { background: #1e1e1e; padding: 20px; border-radius: 15px; border: 1px solid #333; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .alert-box { background: #ffeb3b; color: #000; padding: 12px; border-radius: 8px; font-weight: bold; margin-bottom: 15px; display: none; text-align: center; border: 2px solid #fbc02d; }
+        
+        h2 { color: #ffeb3b; border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0; }
+        .stat-list { list-style: none; padding: 0; font-size: 1.1em; }
+        .stat-list li { margin-bottom: 12px; padding: 8px; background: #252525; border-radius: 5px; }
+        .stat-value { color: #4fc3f7; font-weight: bold; float: right; }
+        
+        .radar-box { width: 100%; margin-top: 20px; border-radius: 15px; overflow: hidden; border: 2px solid #333; }
+        
+        footer { margin-top: 40px; padding: 20px; font-size: 0.85em; color: #777; text-align: center; background: #0a0a0a; width: 100%; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>IROQUOIS COUNTY WEATHER COMMAND</h1>
+    <p>Live Local Data | Analysis for East-Central Illinois</p>
+</header>
+
+<div class="container">
+    <div id="nws-alert" class="alert-box">Loading Alerts...</div>
+
+    <div class="dashboard">
+        <div>
+            <div id="map"></div>
+            <div class="radar-box">
+                <iframe src="https://radar.weather.gov/ridge/standard/KLOT_loop.gif" width="100%" height="450px" frameborder="0"></iframe>
+            </div>
+        </div>
+
+<div class="info-panel">
+    <h2>Live Station Data (KIKK)</h2>
+    <ul class="stat-list">
+        <li>Temperature: <span id="stat-temp" class="stat-value">--</span></li>
+        <li>Dew Point: <span id="stat-dew" class="stat-value">--</span></li>
+        <li>Wind Speed: <span id="stat-wind" class="stat-value">--</span></li>
+        <li>Conditions: <span id="stat-desc" class="stat-value">--</span></li>
+    </ul>
+
+    <h2>Forecaster's Log</h2>
+    <div class="blog-post">
+        <strong>Monday, March 23:</strong> 
+        Currently seeing high pressure (1030mb) and low dew points (23°F). 
+        Watching for a major moisture surge by Wednesday night. 
+        <strong>Thursday Risk:</strong> 15% (Slight) for our area.
+    </div>
+
+    <h2 style="margin-top:20px;">Iroquois Co. Safety</h2>
+    <ul style="font-size: 0.9em; line-height: 1.6; color: #ffca28;">
+        <li>✅ Have a way to get warnings (Phone/Radio).</li>
+        <li>✅ Know your "Safe Spot" (Basement/Inner Room).</li>
+        <li>✅ Watch for "Inflow" winds over 40mph.</li>
+    </ul>
+</div>
+
+<footer>
+    <p>&copy; 2026 Iroquois County Weather. Data provided by NOAA/NWS API. <br> 
+    <strong>Safety First:</strong> Never rely on a single source during severe weather. Listen to your NOAA Weather Radio.</p>
+</footer>
+
+<script>
+    // 1. Setup Map centered on Iroquois County
+    var map = L.map('map').setView([40.77, -87.73], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.marker([40.77, -87.73]).addTo(map).bindPopup('<b>Iroquois County Hub</b>');
+
+    // 2. Function to fetch Live Weather from Kankakee Airport (KIKK)
+    async function getWeatherData() {
+        try {
+            const response = await fetch('https://api.weather.gov/stations/KIKK/observations/latest');
+            const data = await response.json();
+            const p = data.properties;
+
+            // Convert Celsius to Fahrenheit
+            const tempF = (p.temperature.value * 9/5 + 32).toFixed(1);
+            const dewF = (p.dewpoint.value * 9/5 + 32).toFixed(1);
+            // Convert Meters per Second to MPH
+            const windMph = (p.windSpeed.value * 2.237).toFixed(1);
+
+            document.getElementById('stat-temp').innerText = tempF + "°F";
+            document.getElementById('stat-dew').innerText = dewF + "°F";
+            document.getElementById('stat-wind').innerText = windMph + " mph";
+            document.getElementById('stat-desc').innerText = p.textDescription;
+        } catch (e) {
+            console.log("Weather data fetch failed.");
+        }
+    }
+
+    // 3. Function to fetch Live Alerts for Iroquois County (Zone ILZ046)
+    async function getAlerts() {
+        try {
+            const response = await fetch('https://api.weather.gov/alerts/active/zone/ILZ046');
+            const data = await response.json();
+            const alertBox = document.getElementById('nws-alert');
+            
+            if (data.features.length > 0) {
+                alertBox.style.display = 'block';
+                alertBox.innerText = "⚠️ ACTIVE ALERT: " + data.features[0].properties.headline;
+            } else {
+                alertBox.style.display = 'none';
+            }
+        } catch (e) {
+            console.log("Alert fetch failed.");
+        }
+    }
+
+    // Run updates immediately
+    getWeatherData();
+    getAlerts();
+
+    // Refresh every 5 minutes (300,000 milliseconds)
+    setInterval(() => {
+        getWeatherData();
+        getAlerts();
+    }, 300000);
+</script>
+
+</body>
+</html>
